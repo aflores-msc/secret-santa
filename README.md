@@ -84,3 +84,12 @@ or the site is switched off (your data is kept). PythonAnywhere emails a reminde
 
 **Updating later:** push changes to GitHub, then in a PythonAnywhere Bash console run
 `cd ~/secret-santa && git pull`, and click **Reload** on the Web tab.
+
+## Forgotten password or PIN
+
+Run this in a Bash console in the project folder (use your own event code, which is the part of
+the share link after `/e/`). It asks for the new password twice and also clears any lockout:
+
+```bash
+.venv/bin/flask --app app reset-password --event=EVENTCODE --first=Armando --last=Flores
+```

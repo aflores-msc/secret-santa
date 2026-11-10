@@ -13,6 +13,7 @@ import secrets
 import sqlite3
 from datetime import date, datetime, timedelta, timezone
 
+import click
 from flask import (
     Blueprint,
     Flask,
@@ -345,7 +346,9 @@ def login(code):
     form = request.form
     first = clean(form.get("first_name"))
     last = clean(form.get("last_name"))
-    secret = form.get("secret", "").strip()
+    secret = form.get("secret", "")
+    # Passwords are saved exactly as typed; PINs are saved trimmed. Accept either form.
+    candidates = {secret, secret.strip()}
 
     db = get_db()
     row = db.execute(
@@ -358,7 +361,7 @@ def login(code):
         locked_until = row["locked_until"]
         if locked_until and datetime.fromisoformat(locked_until) > utcnow():
             error = "Too many wrong tries. Please wait 15 minutes and try again."
-        elif check_password_hash(row["secret_hash"], secret):
+        elif any(check_password_hash(row["secret_hash"], s) for s in candidates):
             db.execute(
                 "UPDATE participants SET failed_logins = 0, locked_until = NULL WHERE id = ?",
                 (row["id"],),
@@ -525,6 +528,33 @@ def create_app(test_config=None):
                 c,
             ),
         )
+
+    @app.cli.command("reset-password")
+    @click.option("--event", "code", required=True, help="Event code from the share link (the part after /e/).")
+    @click.option("--first", required=True, help="First name, as shown in the event.")
+    @click.option("--last", required=True, help="Last name, as shown in the event.")
+    @click.option("--password", prompt="New password (or PIN)", hide_input=True, confirmation_prompt=True)
+    def reset_password(code, first, last, password):
+        """Set a new organizer password or participant PIN, and clear any lockout."""
+        db = get_db()
+        row = db.execute(
+            """SELECT p.id, p.is_organizer FROM participants p JOIN events e ON e.id = p.event_id
+               WHERE e.code = ? AND p.name_key = ?""",
+            (code, make_name_key(clean(first), clean(last))),
+        ).fetchone()
+        if row is None:
+            raise click.ClickException("No one with that name in that event.")
+        if row["is_organizer"] and len(password) < 6:
+            raise click.ClickException("The organizer password needs at least 6 characters.")
+        if not row["is_organizer"] and not PIN_RE.match(password.strip()):
+            raise click.ClickException("A participant PIN must be 4 to 6 digits.")
+        secret = password if row["is_organizer"] else password.strip()
+        db.execute(
+            "UPDATE participants SET secret_hash = ?, failed_logins = 0, locked_until = NULL WHERE id = ?",
+            (generate_password_hash(secret), row["id"]),
+        )
+        db.commit()
+        click.echo(f"Done. {clean(first)} {clean(last)} can log in with the new password now.")
 
     with app.app_context():
         init_db()

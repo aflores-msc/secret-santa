@@ -89,6 +89,35 @@ def test_login_after_draw_with_pin(app):
     assert "Tap the gift" in fresh.get(f"/e/{code}").get_data(as_text=True)
 
 
+@pytest.mark.parametrize("password", ["Navidad2026", "with spaces in it", " leading1", "trailing1 "])
+def test_organizer_can_log_back_in(app, password):
+    org, code = create_event(app, first="Armando", last="Flores", password=password)
+    post(org, f"/e/{code}/logout", {})
+    assert "Organizer tools" not in org.get(f"/e/{code}").get_data(as_text=True)
+    res = post(org, f"/e/{code}/login", {"first_name": "Armando", "last_name": "Flores", "secret": password})
+    assert res.status_code == 302
+    assert "Organizer tools" in org.get(f"/e/{code}").get_data(as_text=True)
+
+
+def test_reset_password_command(app):
+    org, code = create_event(app, first="Armando", last="Flores", password="forgotten1")
+    client = app.test_client()
+    for _ in range(5):  # lock the account
+        post(client, f"/e/{code}/login", {"first_name": "Armando", "last_name": "Flores", "secret": "wrong!"})
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        args=["reset-password", f"--event={code}", "--first=armando", "--last=FLORES"],
+        input="NewPass123\nNewPass123\n",
+    )
+    assert result.exit_code == 0, result.output
+    res = post(client, f"/e/{code}/login", {"first_name": "Armando", "last_name": "Flores", "secret": "NewPass123"})
+    assert res.status_code == 302
+
+    bad = runner.invoke(args=["reset-password", f"--event={code}", "--first=No", "--last=One"], input="x12345\nx12345\n")
+    assert bad.exit_code != 0 and "No one with that name" in bad.output
+
+
 def test_draw_needs_three_people(app):
     org, code = create_event(app)
     join(app, code, "Ana", "Smith")
