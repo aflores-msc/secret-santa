@@ -79,8 +79,8 @@ Replace `USERNAME` with your PythonAnywhere username.
 
 5. Click **Reload** and open `https://USERNAME.pythonanywhere.com`.
 
-Free accounts must click *Run until 3 months from today* on the Web tab every 3 months,
-or the site is switched off (your data is kept).
+Free accounts must log in and click *Run until 1 month from today* on the Web tab every month,
+or the site is switched off (your data is kept). PythonAnywhere emails a reminder a week before.
 
 **Updating later:** push changes to GitHub, then in a PythonAnywhere Bash console run
 `cd ~/secret-santa && git pull`, and click **Reload** on the Web tab.
