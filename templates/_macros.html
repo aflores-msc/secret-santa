@@ -1,0 +1,22 @@
+{% macro errors_box(errors) %}
+  {% if errors %}
+    <div class="alert alert-error" role="alert">
+      {% for e in errors %}<p>{{ e }}</p>{% endfor %}
+    </div>
+  {% endif %}
+{% endmacro %}
+
+{% macro name_fields(form) %}
+  <div class="row">
+    <label class="field">
+      <span>First name</span>
+      <input name="first_name" value="{{ form.get('first_name', '') }}" maxlength="40" autocomplete="given-name" required>
+    </label>
+    <label class="field">
+      <span>Last name</span>
+      <input name="last_name" value="{{ form.get('last_name', '') }}" maxlength="40" autocomplete="family-name" required>
+    </label>
+  </div>
+{% endmacro %}
+
+{% macro csrf() %}<input type="hidden" name="csrf" value="{{ csrf_token() }}">{% endmacro %}

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} · Secret Santa{% endblock %}
+{% block content %}
+<section class="card festive center">
+  <div class="hero-emoji" aria-hidden="true">☃️</div>
+  <h1>{{ title }}</h1>
+  <p>{{ message }}</p>
+  <a class="btn" href="{{ url_for('santa.home') }}">Back to the start</a>
+</section>
+{% endblock %}

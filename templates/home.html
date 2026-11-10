@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <div class="hero-emoji" aria-hidden="true">🎄</div>
+  <h1 class="hero-title">Secret Santa</h1>
+  <p class="hero-sub">Draw names with friends and family, even when you're not all in the same room.</p>
+  <a class="btn btn-lg" href="{{ url_for('santa.new_event') }}">🎁 New Secret Santa</a>
+</section>
+
+<section class="steps">
+  <article class="step card">
+    <div class="step-num">1</div>
+    <h3>Create &amp; share</h3>
+    <p>Start a Secret Santa and send the link to your group.</p>
+  </article>
+  <article class="step card">
+    <div class="step-num">2</div>
+    <h3>Everyone joins</h3>
+    <p>Each person adds their name and picks a secret PIN, whenever suits them.</p>
+  </article>
+  <article class="step card">
+    <div class="step-num">3</div>
+    <h3>Draw &amp; reveal</h3>
+    <p>The organizer draws names. Everyone opens their gift to see who they're buying for.</p>
+  </article>
+</section>
+{% endblock %}

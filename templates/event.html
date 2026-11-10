@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% from "_macros.html" import errors_box, name_fields, csrf %}
+{% block title %}{{ event.name }} · Secret Santa{% endblock %}
+{% block content %}
+{% set is_open = event.status == 'open' %}
+{% set base = url_for('santa.event', code=event.code) %}
+
+<section class="event-head">
+  <p class="eyebrow">Secret Santa</p>
+  <h1 class="event-title">{{ event.name }}</h1>
+  <div class="chips">
+    {% if event.budget %}<span class="chip">💰 {{ event.budget }}</span>{% endif %}
+    {% if event.exchange_date %}<span class="chip">📅 {{ event.exchange_date|nice_date }}</span>{% endif %}
+    <span class="chip">👥 {{ participants|length }} joined</span>
+    {% if is_open %}
+      <span class="chip chip-green">✍️ Sign-ups open</span>
+    {% else %}
+      <span class="chip chip-gold">🎲 Names drawn</span>
+    {% endif %}
+  </div>
+  {% if organizer %}<p class="muted">Organized by {{ organizer.first_name }} {{ organizer.last_name }}</p>{% endif %}
+</section>
+
+{% if not me %}
+
+  {% if is_open and view != 'login' %}
+    {# ---------------------------------------------------------------- join #}
+    <section class="card festive">
+      <h2>🎅 Join the fun</h2>
+      <p class="muted">Add your name and pick a secret PIN. You'll need both to see your match after the draw.</p>
+      {{ errors_box(join_errors) }}
+      <form method="post" action="{{ base }}/join" class="form">
+        {{ csrf() }}
+        {{ name_fields(form) }}
+        <div class="row">
+          <label class="field">
+            <span>PIN (4–6 digits)</span>
+            <input type="password" name="pin" inputmode="numeric" pattern="\d{4,6}" minlength="4" maxlength="6" autocomplete="new-password" required>
+          </label>
+          <label class="field">
+            <span>Repeat PIN</span>
+            <input type="password" name="pin_confirm" inputmode="numeric" pattern="\d{4,6}" minlength="4" maxlength="6" autocomplete="new-password" required>
+          </label>
+        </div>
+        <p class="hint">Pick something you'll remember, but not your bank PIN!</p>
+        <label class="field">
+          <span>Wishlist <em>(optional)</em></span>
+          <textarea name="wishlist" rows="3" maxlength="500" placeholder="Cozy socks, a good mystery novel, anything chocolate…">{{ form.get('wishlist', '') }}</textarea>
+        </label>
+        <button class="btn btn-block" type="submit">🎄 Join</button>
+      </form>
+      <p class="switch">Already joined, or you're the organizer? <a href="{{ base }}?view=login">Log in</a></p>
+    </section>
+
+  {% else %}
+    {# --------------------------------------------------------------- login #}
+    <section class="card festive">
+      {% if is_open %}
+        <h2>👋 Welcome back</h2>
+        <p class="muted">Log in with your name and PIN.</p>
+      {% else %}
+        <h2>🎲 The names are drawn!</h2>
+        <p class="muted">Log in with your name and PIN to see who you're buying for.</p>
+      {% endif %}
+      {{ errors_box(login_errors) }}
+      <form method="post" action="{{ base }}/login" class="form">
+        {{ csrf() }}
+        {{ name_fields(form) }}
+        <label class="field">
+          <span>PIN <em>(or organizer password)</em></span>
+          <input type="password" name="secret" autocomplete="current-password" required>
+        </label>
+        <button class="btn btn-block" type="submit">🔑 Log in</button>
+      </form>
+      {% if is_open %}
+        <p class="switch">Not in yet? <a href="{{ base }}">Join instead</a></p>
+      {% else %}
+        <p class="switch">Didn't join in time? Sign-ups are closed, so ask the organizer.</p>
+      {% endif %}
+    </section>
+  {% endif %}
+
+{% else %}
+
+  {% if is_open %}
+    {# ------------------------------------------------------------- waiting #}
+    <section class="card festive center">
+      <div class="hero-emoji" aria-hidden="true">🎉</div>
+      <h2>You're in, {{ me.first_name }}!</h2>
+      {% if me.is_organizer %}
+        <p>Share the link below. When everyone has joined, draw the names.</p>
+      {% else %}
+        <p>Come back to this same link after {{ organizer.first_name if organizer else 'the organizer' }} draws the names.
+           You'll log in with your name and PIN.</p>
+      {% endif %}
+    </section>
+
+    {% if not me.is_organizer %}
+      <section class="card">
+        <h3>Who's in so far</h3>
+        <ul class="people">
+          {% for p in participants %}
+            <li><span>{{ p.first_name }} {{ p.last_name }}</span>
+              {% if p.id == me.id %}<span class="badge">you</span>{% elif p.is_organizer %}<span class="badge badge-red">organizer</span>{% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endif %}
+
+  {% else %}
+    {# -------------------------------------------------------------- reveal #}
+    <section class="card festive center reveal-card">
+      <div id="reveal-intro" {% if receiver %}hidden{% endif %}>
+        <p class="eyebrow">Ho ho ho, {{ me.first_name }}!</p>
+        <h2>Tap the gift to see who you're buying for</h2>
+        <form method="post" action="{{ base }}/reveal" id="reveal-form">
+          {{ csrf() }}
+          <button class="gift" type="submit" aria-label="Open your gift">
+            <span class="gift-lid"><span class="bow"></span></span>
+            <span class="gift-box"></span>
+          </button>
+        </form>
+        <p class="hint">Make sure nobody's peeking over your shoulder 👀</p>
+      </div>
+
+      <div id="reveal-result" {% if not receiver %}hidden{% endif %}>
+        <p class="eyebrow">You're the Secret Santa for</p>
+        <h2 class="receiver-name" id="receiver-name">{% if receiver %}{{ receiver.first_name }} {{ receiver.last_name }}{% endif %}</h2>
+        <div class="wishlist-box" id="receiver-wishlist" {% if not (receiver and receiver.wishlist) %}hidden{% endif %}>
+          <p class="wishlist-label">🎀 Their wishlist</p>
+          <p class="wishlist-text">{% if receiver %}{{ receiver.wishlist }}{% endif %}</p>
+        </div>
+        <p class="shh">Shh… keep it secret 🤫</p>
+      </div>
+    </section>
+  {% endif %}
+
+  {% if me.is_organizer %}
+    {# ----------------------------------------------------------- organizer #}
+    <section class="card organizer">
+      <h2>🧝 Organizer tools</h2>
+      {% if is_open %}
+        <label class="field">
+          <span>Share this link with everyone</span>
+          <div class="copy-row">
+            <input id="share-url" value="{{ share_url }}" readonly>
+            <button class="btn btn-small btn-green" type="button" data-copy="#share-url">Copy</button>
+          </div>
+        </label>
+        <a class="btn btn-small btn-ghost" target="_blank" rel="noopener"
+           href="https://wa.me/?text={{ ('Join our Secret Santa \"' ~ event.name ~ '\" 🎅🎁 ' ~ share_url)|urlencode }}">Share on WhatsApp</a>
+
+        <h3>Joined so far ({{ participants|length }})</h3>
+        <ul class="people">
+          {% for p in participants %}
+            <li>
+              <span>{{ p.first_name }} {{ p.last_name }}</span>
+              {% if p.is_organizer %}
+                <span class="badge">you</span>
+              {% else %}
+                <form method="post" action="{{ base }}/remove/{{ p.id }}"
+                      data-confirm="Remove {{ p.first_name }} {{ p.last_name }} from this Secret Santa?">
+                  {{ csrf() }}
+                  <button class="link-btn" type="submit" aria-label="Remove {{ p.first_name }} {{ p.last_name }}">Remove</button>
+                </form>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+
+        {{ errors_box([draw_error] if draw_error else []) }}
+        <form method="post" action="{{ base }}/draw"
+              data-confirm="Draw names now? Sign-ups will close and nobody else can join.">
+          {{ csrf() }}
+          <button class="btn btn-block" type="submit" {% if participants|length < min_participants %}disabled{% endif %}>🎲 Close sign-ups &amp; draw names</button>
+        </form>
+        {% if participants|length < min_participants %}
+          <p class="hint center">You need at least {{ min_participants }} people to draw names.</p>
+        {% endif %}
+      {% else %}
+        {% set opened = participants|selectattr('revealed_at')|list|length %}
+        <p>{{ opened }} of {{ participants|length }} people have opened their gift. Matches stay secret, even from you.</p>
+        <ul class="people">
+          {% for p in participants %}
+            <li>
+              <span>{{ p.first_name }} {{ p.last_name }}</span>
+              {% if p.revealed_at %}<span class="badge badge-green">✅ opened</span>{% else %}<span class="badge badge-muted">⏳ not yet</span>{% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+        <label class="field">
+          <span>Remind people with the same link</span>
+          <div class="copy-row">
+            <input id="share-url" value="{{ share_url }}" readonly>
+            <button class="btn btn-small btn-green" type="button" data-copy="#share-url">Copy</button>
+          </div>
+        </label>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  {# ------------------------------------------------------------- wishlist #}
+  <section class="card" id="wishlist">
+    <h3>🎀 Your wishlist</h3>
+    <p class="muted">Give your Secret Santa a few ideas. You can change it any time.</p>
+    {{ errors_box([wishlist_error] if wishlist_error else []) }}
+    {% if request.args.get('saved') %}<div class="alert alert-ok" role="status"><p>Wishlist saved ✓</p></div>{% endif %}
+    <form method="post" action="{{ base }}/wishlist" class="form">
+      {{ csrf() }}
+      <textarea name="wishlist" rows="3" maxlength="500" placeholder="Cozy socks, a good mystery novel, anything chocolate…">{{ me.wishlist }}</textarea>
+      <button class="btn btn-small btn-green" type="submit">Save wishlist</button>
+    </form>
+  </section>
+
+  <form method="post" action="{{ base }}/logout" class="logout">
+    {{ csrf() }}
+    Not {{ me.first_name }}? <button class="link-btn" type="submit">Log out</button>
+  </form>
+
+{% endif %}
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% from "_macros.html" import errors_box, name_fields, csrf %}
+{% block title %}New Secret Santa{% endblock %}
+{% block content %}
+<section class="card festive">
+  <h1>🎁 New Secret Santa</h1>
+  <p class="muted">You'll be the organizer, and you're in the draw too.</p>
+  {{ errors_box(errors) }}
+  <form method="post" class="form">
+    {{ csrf() }}
+    <h2 class="form-section">The event</h2>
+    <label class="field">
+      <span>Event name</span>
+      <input name="event_name" value="{{ form.get('event_name', '') }}" maxlength="80" placeholder="Family Christmas 2026" required>
+    </label>
+    <div class="row">
+      <label class="field">
+        <span>Budget <em>(optional)</em></span>
+        <input name="budget" value="{{ form.get('budget', '') }}" maxlength="40" placeholder="$25">
+      </label>
+      <label class="field">
+        <span>Exchange date <em>(optional)</em></span>
+        <input type="date" name="exchange_date" value="{{ form.get('exchange_date', '') }}">
+      </label>
+    </div>
+
+    <h2 class="form-section">You, the organizer</h2>
+    {{ name_fields(form) }}
+    <div class="row">
+      <label class="field">
+        <span>Password</span>
+        <input type="password" name="password" minlength="6" autocomplete="new-password" required>
+      </label>
+      <label class="field">
+        <span>Repeat password</span>
+        <input type="password" name="password_confirm" minlength="6" autocomplete="new-password" required>
+      </label>
+    </div>
+    <p class="hint">You'll use your name and this password to manage the event and see your own match.</p>
+
+    <button class="btn btn-block" type="submit">🎄 Create Secret Santa</button>
+  </form>
+</section>
+{% endblock %}
