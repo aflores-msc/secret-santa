@@ -10,8 +10,9 @@ A small Flask app for Secret Santa groups whose members join at different times.
    They can add a wishlist.
 3. **The organizer** can remove mistakes, then clicks *Close sign-ups & draw names*. Everyone is
    paired at once in one random circle, so nobody gets themselves. At least 3 people are needed.
-4. **Everyone** goes back to the same link, logs in with name + PIN (the organizer uses their
-   password) and taps the gift to see who they're buying for, plus that person's wishlist.
+4. **Everyone** goes back to the same link, logs in with just their first name + PIN (the organizer
+   uses their password) and taps the gift to see who they're buying for, plus that person's wishlist.
+   If two people share a first name and PIN, the page also asks for the last name.
 
 The organizer can see who has opened their gift, but not who got whom.
 

@@ -83,10 +83,60 @@ def test_login_after_draw_with_pin(app):
     post(org, f"/e/{code}/draw", {})
 
     fresh = app.test_client()
-    assert "The names are drawn" in fresh.get(f"/e/{code}").get_data(as_text=True)
-    res = post(fresh, f"/e/{code}/login", {"first_name": " ana ", "last_name": "SMITH", "secret": "4321"})
+    page = fresh.get(f"/e/{code}").get_data(as_text=True)
+    assert "The names are drawn" in page
+    assert 'name="last_name"' not in page  # only first name + PIN after the draw
+    res = post(fresh, f"/e/{code}/login", {"first_name": " ana ", "secret": "4321"})
     assert res.status_code == 302
     assert "Tap the gift" in fresh.get(f"/e/{code}").get_data(as_text=True)
+
+
+def test_organizer_logs_in_with_first_name_after_draw(app):
+    org, code = create_event(app, first="Armando", last="Flores", password="Navidad2026")
+    join(app, code, "Ana", "Smith")
+    join(app, code, "Ben", "Smith")
+    post(org, f"/e/{code}/draw", {})
+    post(org, f"/e/{code}/logout", {})
+    res = post(org, f"/e/{code}/login", {"first_name": "armando", "secret": "Navidad2026"})
+    assert res.status_code == 302
+    assert "Organizer tools" in org.get(f"/e/{code}").get_data(as_text=True)
+
+
+def drawn_event_with_two_anas(app, pin_1, pin_2):
+    org, code = create_event(app)
+    join(app, code, "Ana", "Smith", pin=pin_1)
+    join(app, code, "Ana", "Lopez", pin=pin_2)
+    post(org, f"/e/{code}/draw", {})
+    return code
+
+
+def test_same_first_name_different_pins(app):
+    code = drawn_event_with_two_anas(app, "1111", "2222")
+    client = app.test_client()
+    assert post(client, f"/e/{code}/login", {"first_name": "Ana", "secret": "2222"}).status_code == 302
+    res = post(client, f"/e/{code}/reveal", {}, headers={"Accept": "application/json"})
+    assert res.status_code == 200 and res.get_json()["name"] != "Ana Lopez"
+
+
+def test_same_first_name_same_pin_asks_for_last_name(app):
+    code = drawn_event_with_two_anas(app, "1111", "1111")
+    client = app.test_client()
+    res = post(client, f"/e/{code}/login", {"first_name": "Ana", "secret": "1111"})
+    assert res.status_code == 400
+    page = res.get_data(as_text=True)
+    assert "more than one Ana" in page and 'name="last_name"' in page
+    res = post(client, f"/e/{code}/login", {"first_name": "Ana", "last_name": "Lopez", "secret": "1111"})
+    assert res.status_code == 302
+
+
+def test_first_name_only_wrong_pin_locks_out(app):
+    code = drawn_event_with_two_anas(app, "1111", "2222")
+    client = app.test_client()
+    for _ in range(5):
+        res = post(client, f"/e/{code}/login", {"first_name": "Ana", "secret": "0000"})
+        assert res.status_code == 400
+    res = post(client, f"/e/{code}/login", {"first_name": "Ana", "secret": "1111"})
+    assert "Too many wrong tries" in res.get_data(as_text=True)
 
 
 @pytest.mark.parametrize("password", ["Navidad2026", "with spaces in it", " leading1", "trailing1 "])
@@ -151,7 +201,7 @@ def test_cannot_join_after_draw(app):
     late, res = join(app, code, "Late", "Larry")
     assert res.status_code == 302
     assert "Organizer tools" not in late.get(f"/e/{code}").get_data(as_text=True)
-    assert "Log in with your name and PIN" in late.get(f"/e/{code}").get_data(as_text=True)
+    assert "Log in with your first name and PIN" in late.get(f"/e/{code}").get_data(as_text=True)
 
 
 def test_lockout_after_wrong_pins(app):

@@ -351,39 +351,67 @@ def login(code):
     candidates = {secret, secret.strip()}
 
     db = get_db()
-    row = db.execute(
-        "SELECT * FROM participants WHERE event_id = ? AND name_key = ?",
-        (ev["id"], make_name_key(first, last)),
-    ).fetchone()
-    error = "That name and PIN don't match. Check the spelling of your name and try again."
+    if last:
+        # Full name given: exactly one possible person.
+        rows = db.execute(
+            "SELECT * FROM participants WHERE event_id = ? AND name_key = ?",
+            (ev["id"], make_name_key(first, last)),
+        ).fetchall()
+        error = "That name and PIN don't match. Check the spelling of your name and try again."
+    else:
+        # First name only (used after the draw): everyone in the event with that first name.
+        rows = [
+            r for r in db.execute("SELECT * FROM participants WHERE event_id = ?", (ev["id"],))
+            if clean(r["first_name"]).casefold() == first.casefold()
+        ] if first else []
+        error = "That first name and PIN don't match. Check the spelling and try again."
 
-    if row:
-        locked_until = row["locked_until"]
-        if locked_until and datetime.fromisoformat(locked_until) > utcnow():
-            error = "Too many wrong tries. Please wait 15 minutes and try again."
-        elif any(check_password_hash(row["secret_hash"], s) for s in candidates):
+    lockout_error = "Too many wrong tries. Please wait 15 minutes and try again."
+    now = utcnow()
+    unlocked = [
+        r for r in rows
+        if not (r["locked_until"] and datetime.fromisoformat(r["locked_until"]) > now)
+    ]
+    matches = [
+        r for r in unlocked
+        if any(check_password_hash(r["secret_hash"], s) for s in candidates)
+    ]
+
+    if len(matches) == 1:
+        db.execute(
+            "UPDATE participants SET failed_logins = 0, locked_until = NULL WHERE id = ?",
+            (matches[0]["id"],),
+        )
+        db.commit()
+        log_in(code, matches[0]["id"])
+        return redirect(url_for("santa.event", code=code))
+
+    if len(matches) > 1:
+        # Two people share this first name and PIN: the last name tells them apart.
+        error = f"There's more than one {first} here. Please add your last name too."
+        return render_event(
+            ev, None, status=400, login_errors=[error], form=form, view="login", need_last_name=True
+        )
+
+    if rows and not unlocked:
+        error = lockout_error
+    for r in unlocked:
+        failed = r["failed_logins"] + 1
+        if failed >= MAX_FAILED_LOGINS:
             db.execute(
-                "UPDATE participants SET failed_logins = 0, locked_until = NULL WHERE id = ?",
-                (row["id"],),
+                "UPDATE participants SET failed_logins = 0, locked_until = ? WHERE id = ?",
+                (iso(now + LOCKOUT), r["id"]),
             )
-            db.commit()
-            log_in(code, row["id"])
-            return redirect(url_for("santa.event", code=code))
+            if len(unlocked) == 1:
+                error = lockout_error
         else:
-            failed = row["failed_logins"] + 1
-            if failed >= MAX_FAILED_LOGINS:
-                db.execute(
-                    "UPDATE participants SET failed_logins = 0, locked_until = ? WHERE id = ?",
-                    (iso(utcnow() + LOCKOUT), row["id"]),
-                )
-                error = "Too many wrong tries. Please wait 15 minutes and try again."
-            else:
-                db.execute(
-                    "UPDATE participants SET failed_logins = ? WHERE id = ?", (failed, row["id"])
-                )
-            db.commit()
+            db.execute("UPDATE participants SET failed_logins = ? WHERE id = ?", (failed, r["id"]))
+    db.commit()
 
-    return render_event(ev, None, status=400, login_errors=[error], form=form, view="login")
+    return render_event(
+        ev, None, status=400, login_errors=[error], form=form, view="login",
+        need_last_name=bool(last),
+    )
 
 
 @bp.post("/e/<code>/logout")

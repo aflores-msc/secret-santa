@@ -60,12 +60,19 @@
         <p class="muted">Log in with your name and PIN.</p>
       {% else %}
         <h2>🎲 The names are drawn!</h2>
-        <p class="muted">Log in with your name and PIN to see who you're buying for.</p>
+        <p class="muted">Log in with your first name and PIN to see who you're buying for.</p>
       {% endif %}
       {{ errors_box(login_errors) }}
       <form method="post" action="{{ base }}/login" class="form">
         {{ csrf() }}
-        {{ name_fields(form) }}
+        {% if is_open or need_last_name %}
+          {{ name_fields(form) }}
+        {% else %}
+          <label class="field">
+            <span>First name</span>
+            <input name="first_name" value="{{ form.get('first_name', '') }}" maxlength="40" autocomplete="given-name" required>
+          </label>
+        {% endif %}
         <label class="field">
           <span>PIN <em>(or organizer password)</em></span>
           <input type="password" name="secret" autocomplete="current-password" required>
